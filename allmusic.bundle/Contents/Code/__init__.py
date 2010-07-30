@@ -7,6 +7,7 @@ PREFIX      = "/music/allmusic"
 CACHE_INTERVAL    = 1800
 
 BASE_PAGE = "http://www.allmusic.com"
+GENRES = "http://www.allmusic.com/cg/amg.dll?p=amg&sql=73:p"
 DIRECT_URL = "http://www.allmusic.com/cg/amg.dll?p=amg&sql=%s"
 
 ####################################################################################################
@@ -22,27 +23,36 @@ def Start():
 ##################################
 def MainMenu():
     dir = MediaContainer() 
+    # TODO: order
     dir.Append(Function(DirectoryItem(Genres, "Genres")))
+    #dir.Append(Function(DirectoryItem(Moods, "Moods")))
+    #dir.Append(Function(DirectoryItem(NewReleases, "New Releases")))
+    #dir.Append(Function(DirectoryItem(TopSearches, "Top Searches")))
+    #dir.Append(Function(DirectoryItem(EditorsChoice, "Editors Choice")))
+    #dir.Append(Function(DirectoryItem(Composers, "Composers")))
+    #dir.Append(Function(DirectoryItem(Countries, "Countries")))
+    #dir.Append(Function(DirectoryItem(Themes, "Themes (weird if you ask me)")))
     return dir
-    
+   
 def Genres(sender):
     dir = MediaContainer(viewGroup='Details', title2=sender.itemTitle)
-    for genre in XML.ElementFromURL(BASE_PAGE, True).xpath('//div[@id="header_menu"]/div/a'):
-        href = BASE_PAGE + genre.get('href')
+    for genre in XML.ElementFromURL(GENRES, True).xpath('//tr[@class="visible"]'):
+        href = DIRECT_URL % genre.get('onclick').split("'")[1]
         title = XML.ElementFromURL(href, True).xpath('//div[@id="genre"]//span[@class="title"]')[0].text
         summaries = XML.ElementFromURL(href, True).xpath('//div[@id="genre"]//p')
         thumbs = XML.ElementFromURL(href, True).xpath('//div[@id="genre"]//div[@id="featured"]//td/a/img')
         
         if len(summaries) > 0 and len(thumbs) > 1 :
-            dir.Append(Function(DirectoryItem(Genre, title=title, summary=summaries[0].text, thumb=thumbs[0].get('src')), url=href)) 
+            thumb = thumbs[0].get('src')
+            dir.Append(Function(DirectoryItem(Genre, title=title, summary=summaries[0].text, thumb=thumb), thumb=thumb, url=href)) 
     return dir
 
-def Genre(sender, url):
+def Genre(sender, thumb, url):
     dir = MediaContainer(title2=sender.itemTitle)
-    dir.Append(Function(DirectoryItem(SubGenres, 'Sub-Genres'), url=url))
-    dir.Append(Function(DirectoryItem(Albums, 'Albums'), url=url+"~T3"))
-    dir.Append(Function(DirectoryItem(Artists, 'Artists'), url=url+"~T2"))
-    dir.Append(Function(DirectoryItem(Songs, 'Songs'), url=url+"~T4"))
+    dir.Append(Function(DirectoryItem(SubGenres, 'Sub-Genres', thumb=thumb), url=url)) # TODO
+    dir.Append(Function(DirectoryItem(Albums, 'Albums', thumb=thumb), url=url+"~T3"))
+    dir.Append(Function(DirectoryItem(Artists, 'Artists', thumb=thumb), url=url+"~T2")) # TODO
+    dir.Append(Function(DirectoryItem(Songs, 'Songs', thumb=thumb), url=url+"~T4")) # TODO
     return dir
 
 
@@ -52,29 +62,33 @@ def Albums(sender, url):
 
 
 def Artists(sender, url):
-    dir = MediaContainer(title2=sender.itemTitle)
+    dir = MediaContainer(viewGroup='Details', title2=sender.itemTitle)
     for artist in XML.ElementFromURL(url, True).xpath('//tr[@class="visible"]'):
         name = artist.xpath('.//td[@class="cell"]')[0].text
         onclick = artist.get('onclick')
-        # Extract more meta data here
         artistPage = DIRECT_URL % onclick.split("'")[1]
-        dir.Append(Function(DirectoryItem(ArtistSongs, name), name=name, artistPage=artistPage)) 
+        thumbs = XML.ElementFromURL(artistPage, True).xpath('//div[@id="artistpage"]//td/a/img')
+        if len(thumbs) > 0:
+            thumb = thumbs[0].get('src')
+        summaries = XML.ElementFromURL(artistPage, True).xpath('//div[@id="artistpage"]//p')
+        if len(summaries) > 0:
+            summary = summaries[0].text
+        dir.Append(Function(DirectoryItem(ArtistSongs, name, summary=summary, thumb=thumb), name=name, thumb=thumb, artistPage=artistPage)) 
     return dir
 
-def ArtistSongs(sender, name, artistPage):
+def ArtistSongs(sender, name, thumb, artistPage):
     dir = MediaContainer(mediaType='music', title2=sender.itemTitle)
     songsPage = artistPage + "~T3"
     for song in XML.ElementFromURL(songsPage, True).xpath('//tr[@class="visible"]'):
-        links = song.xpath('.//a')
-        if len(links) == 2:
-           title = links[1].text
-           playlist = BASE_PAGE + links[0].get('href')
-           content = HTTP.Request(playlist)
-           dir.Append(Function(TrackItem(PlayTrack, title), ext=".mp3", track=content))
+        for trackLink in song.xpath(".//a"):
+            trackUrl = BASE_PAGE + trackLink.get('href')
+            if trackUrl.endswith("~T"):
+                content = HTTP.Request(trackUrl)
+                title = song.xpath('.//a')[-1].text
+                if title == None:
+                    title = song.xpath('.//a')[-2].text
+                dir.Append(Function(TrackItem(PlayTrack, title, thumb=thumb), ext=".mp3", track=content))
     return dir
-
-def PlayTrack(sender, track):
-    return Redirect(track)
 
 def Songs(sender, url):
     dir = MediaContainer(viewGroup='Details', title2=sender.itemTitle)
@@ -93,3 +107,6 @@ def SubGenre(sender, pageUrl, title):
     
     return dir
 
+#########################################################
+def PlayTrack(sender, track):
+    return Redirect(track)
