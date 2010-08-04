@@ -49,28 +49,37 @@ def Genres(sender):
 
 def Genre(sender, thumb, url):
     dir = MediaContainer(title2=sender.itemTitle)
-    dir.Append(Function(DirectoryItem(SubGenres, 'Sub-Genres', thumb=thumb), url=url)) # TODO
-    dir.Append(Function(DirectoryItem(Albums, 'Albums', thumb=thumb), url=url+"~T3"))
-    dir.Append(Function(DirectoryItem(Artists, 'Artists', thumb=thumb), url=url+"~T2")) # TODO
-    dir.Append(Function(DirectoryItem(Songs, 'Songs', thumb=thumb), url=url+"~T4")) # TODO
+    dir.Append(Function(DirectoryItem(SubGenres, 'Sub-Genres', thumb=thumb), url=url, title2=sender.itemTitle)) # TODO
+    dir.Append(Function(DirectoryItem(Albums, 'Albums', thumb=thumb), url=url+"~T3", title2=sender.itemTitle)) # TODO
+    dir.Append(Function(DirectoryItem(Artists, 'Artists', thumb=thumb), url=url+"~T2", title2=sender.itemTitle)) 
+    dir.Append(Function(DirectoryItem(Songs, 'Songs', thumb=thumb), url=url+"~T4", title2=sender.itemTitle)) # TODO
+    return dir
+
+def SubGenre(sender, url, title2, thumb=None):
+    dir = MediaContainer(title2=title2)
+    dir.Append(Function(DirectoryItem(Albums, 'Albums', thumb=thumb), url=url+"~T2", title2=sender.itemTitle))
+    dir.Append(Function(DirectoryItem(Artists, 'Artists', thumb=thumb), url=url+"~T1", title2=sender.itemTitle)) 
+    dir.Append(Function(DirectoryItem(Songs, 'Songs', thumb=thumb), url=url+"~T3", title2=sender.itemTitle)) # TODO
     return dir
 
 
-def Albums(sender, url):
+def Albums(sender, url, title2):
     dir = MediaContainer(viewGroup='Details', title2=sender.itemTitle)
     return dir
 
 
-def Artists(sender, url):
-    dir = MediaContainer(viewGroup='Details', title2=sender.itemTitle)
+def Artists(sender, url, title2):
+    dir = MediaContainer(viewGroup='Details', title2=title2)
     for artist in XML.ElementFromURL(url, True).xpath('//tr[@class="visible"]'):
         name = artist.xpath('.//td[@class="cell"]')[0].text
         onclick = artist.get('onclick')
         artistPage = DIRECT_URL % onclick.split("'")[1]
         thumbs = XML.ElementFromURL(artistPage, True).xpath('//div[@id="artistpage"]//td/a/img')
+        thumb = None
         if len(thumbs) > 0:
             thumb = thumbs[0].get('src')
         summaries = XML.ElementFromURL(artistPage, True).xpath('//div[@id="artistpage"]//p')
+        summary = None
         if len(summaries) > 0:
             summary = summaries[0].text
         dir.Append(Function(DirectoryItem(ArtistSongs, name, summary=summary, thumb=thumb), name=name, thumb=thumb, artistPage=artistPage)) 
@@ -87,25 +96,30 @@ def ArtistSongs(sender, name, thumb, artistPage):
                 title = song.xpath('.//a')[-1].text
                 if title == None:
                     title = song.xpath('.//a')[-2].text
+                
                 dir.Append(Function(TrackItem(PlayTrack, title, thumb=thumb), ext=".mp3", track=content))
     return dir
 
-def Songs(sender, url):
+def Songs(sender, url, title2):
     dir = MediaContainer(viewGroup='Details', title2=sender.itemTitle)
     return dir
 
-def SubGenres(sender, url):
-    dir = MediaContainer(viewGroup='Details', title2=sender.itemTitle)
+def SubGenres(sender, url, title2):
+    dir = MediaContainer(viewGroup='Details', title2=title2)
     for subgenre in XML.ElementFromURL(url, True).xpath('//div[@class="large-list-subtitle"]/../../ul/li//a'):
         title = subgenre.text
         pageUrl = BASE_PAGE + subgenre.get('href')
-        dir.Append(Function(DirectoryItem(SubGenre, title=title, ext="mp3"), pageUrl=pageUrl, title=title))
+        summaries = XML.ElementFromURL(pageUrl, True).xpath('//div[@id="bio"]//p')
+        thumbs = XML.ElementFromURL(pageUrl, True).xpath('//td/a/img')
+        summary = None
+        if len(summaries) > 0:
+            summary = summaries[0].text
+        thumb = None
+        if len(thumbs) > 0:
+            thumb = thumbs[0].get('src')
+        dir.Append(Function(DirectoryItem(SubGenre, title=title, summary=summary, thumb=thumb), url=pageUrl, title2=title, thumb=thumb)) 
     return dir
 
-def SubGenre(sender, pageUrl, title):
-    dir = MediaContainer(mediaType='music')
-    
-    return dir
 
 #########################################################
 def PlayTrack(sender, track):
